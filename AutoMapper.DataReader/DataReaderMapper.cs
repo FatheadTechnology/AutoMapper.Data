@@ -1,16 +1,18 @@
-﻿namespace AutoMapper.Data
+﻿using System;
+using System.Collections;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Reflection.Emit;
+using AutoMapper.Data;
+using AutoMapper.Internal;
+using AutoMapper.Mappers;
+
+namespace AutoMapper.DataReader
 {
-    using System;
-    using System.Collections;
-    using System.Collections.Concurrent;
-    using System.Collections.Generic;
-    using System.Data;
-    using System.Linq;
-    using System.Linq.Expressions;
-    using System.Reflection;
-    using System.Reflection.Emit;
-    using Internal;
-    using Mappers;
 #if DOTNET
     using IDataRecord = System.Data.Common.DbDataReader;
     using IDataReader = System.Data.Common.DbDataReader;
@@ -20,19 +22,19 @@
     {
         static DataReaderMapper()
         {
-            FeatureDetector.IsIDataRecordType = t => typeof(IDataRecord).IsAssignableFrom(t);
+            //FeatureDetector.IsIDataRecordType = t => typeof(IDataRecord).IsAssignableFrom(t);
         }
         private static ConcurrentDictionary<BuilderKey, Build> _builderCache = new ConcurrentDictionary<BuilderKey, Build>();
         private static ConcurrentDictionary<Type, CreateEnumerableAdapter> _enumerableAdapterCache = new ConcurrentDictionary<Type, CreateEnumerableAdapter>();
 
         public bool YieldReturnEnabled { get; set; }
 
-        public object Map(ResolutionContext context, IMappingEngineRunner mapper)
+        public object Map(ResolutionContext context)
         {
-            if (IsDataReader(context))
+            if (IsDataReader(context.Types))
             {
                 var destinationElementType = TypeHelper.GetElementType(context.DestinationType);
-                var results = MapDataReaderToEnumerable(context, mapper, destinationElementType, YieldReturnEnabled);
+                var results = MapDataReaderToEnumerable(context, destinationElementType, YieldReturnEnabled);
 
                 if (YieldReturnEnabled)
                 {
@@ -43,39 +45,39 @@
                 return results;
             }
 
-            if (IsDataRecord(context))
+            if (IsDataRecord(context.Types))
             {
                 var dataRecord = context.SourceValue as IDataRecord;
                 var buildFrom = CreateBuilder(context.DestinationType, dataRecord);
                 var result = buildFrom(dataRecord);
-                MapPropertyValues(context, mapper, result);
+                MapPropertyValues(context, context.Engine, result);
                 return result;
             }
 
             return null;
         }
 
-        static IEnumerable MapDataReaderToEnumerable(ResolutionContext context, IMappingEngineRunner mapper, Type destinationElementType, bool useYieldReturn)
+        static IEnumerable MapDataReaderToEnumerable(ResolutionContext context, Type destinationElementType, bool useYieldReturn)
         {
             var dataReader = (IDataReader)context.SourceValue;
             var resolveUsingContext = context;
 
             if (context.TypeMap == null)
             {
-                var configurationProvider = mapper.ConfigurationProvider;
+                var configurationProvider = context.Engine.ConfigurationProvider;
                 TypeMap typeMap = configurationProvider.FindTypeMapFor(context.SourceType, destinationElementType);
-                resolveUsingContext = new ResolutionContext(typeMap, context.SourceValue, context.SourceType, destinationElementType, context.Options, (IMappingEngine)mapper);
+                resolveUsingContext = new ResolutionContext(typeMap, context.SourceValue, context.SourceType, destinationElementType, context.Options, context.Engine);
             }
 
             var buildFrom = CreateBuilder(destinationElementType, dataReader);
 
             if (useYieldReturn)
-                return LoadDataReaderViaYieldReturn(dataReader, mapper, buildFrom, resolveUsingContext);
+                return LoadDataReaderViaYieldReturn(dataReader, context.Engine, buildFrom, resolveUsingContext);
 
-            return LoadDataReaderViaList(dataReader, mapper, buildFrom, resolveUsingContext, destinationElementType);
+            return LoadDataReaderViaList(dataReader, context.Engine, buildFrom, resolveUsingContext, destinationElementType);
         }
 
-        static IEnumerable LoadDataReaderViaList(IDataReader dataReader, IMappingEngineRunner mapper, Build buildFrom, ResolutionContext resolveUsingContext, Type elementType)
+        static IEnumerable LoadDataReaderViaList(IDataReader dataReader, IMappingEngine mapper, Build buildFrom, ResolutionContext resolveUsingContext, Type elementType)
         {
             var list = ObjectCreator.CreateList(elementType);
 
@@ -89,7 +91,7 @@
             return list;
         }
 
-        static IEnumerable LoadDataReaderViaYieldReturn(IDataReader dataReader, IMappingEngineRunner mapper, Build buildFrom, ResolutionContext resolveUsingContext)
+        static IEnumerable LoadDataReaderViaYieldReturn(IDataReader dataReader, IMappingEngine mapper, Build buildFrom, ResolutionContext resolveUsingContext)
         {
             while (dataReader.Read())
             {
@@ -99,18 +101,17 @@
             }
         }
 
-        public bool IsMatch(ResolutionContext context)
+        public bool IsMatch(TypePair context)
         {
             return IsDataReader(context) || IsDataRecord(context);
         }
 
-        private static bool IsDataReader(ResolutionContext context)
+        private static bool IsDataReader(TypePair context)
         {
-            return typeof(IDataReader).IsAssignableFrom(context.SourceType) &&
-                   context.DestinationType.IsEnumerableType();
+            return typeof(IDataReader).IsAssignableFrom(context.SourceType);// &&context.DestinationType.IsEnumerableType();
         }
 
-        private static bool IsDataRecord(ResolutionContext context)
+        private static bool IsDataRecord(TypePair context)
         {
             return typeof(IDataRecord).IsAssignableFrom(context.SourceType);
         }
@@ -236,7 +237,7 @@
             }
         }
 
-        private static void MapPropertyValues(ResolutionContext context, IMappingEngineRunner mapper, object result)
+        private static void MapPropertyValues(ResolutionContext context, IMappingEngine mapper, object result)
         {
             if (context.TypeMap == null)
                 throw new AutoMapperMappingException(context, "Missing type map configuration or unsupported mapping.");
@@ -247,7 +248,7 @@
             }
         }
 
-        private static void MapPropertyValue(ResolutionContext context, IMappingEngineRunner mapper,
+        private static void MapPropertyValue(ResolutionContext context, IMappingEngine mapper,
                                              object mappedObject, PropertyMap propertyMap)
         {
             if (!propertyMap.CanResolveValue())

@@ -136,7 +136,7 @@
     /// </summary>
     public class When_mapping_a_data_reader_to_a_dto_twice : When_mapping_a_data_reader_to_a_dto
     {
-        public When_mapping_a_data_reader_to_a_dto_twice() 
+        public When_mapping_a_data_reader_to_a_dto_twice()
         {
             DataReader = new DataBuilder().BuildDataReader();
             Results = Mapper.Map<IDataReader, IEnumerable<DTOObject>>(DataReader);
@@ -316,7 +316,8 @@
 
         public When_mapping_a_data_reader_to_a_dto_with_nullable_field()
         {
-            Mapper.Initialize(cfg => {
+            Mapper.Initialize(cfg =>
+            {
                 MapperRegistry.Mappers.Insert(0, new DataReaderMapper());
                 cfg.CreateMap<IDataReader, DtoWithSingleNullableField>();
             });
@@ -394,7 +395,8 @@
 
         public When_mapping_a_data_reader_to_a_dto_with_nullable_enum()
         {
-            Mapper.Initialize(cfg => {
+            Mapper.Initialize(cfg =>
+            {
                 MapperRegistry.Mappers.Insert(0, new DataReaderMapper());
 
                 cfg.CreateMap<IDataReader, DtoWithSingleNullableField>();
@@ -491,7 +493,8 @@
 
         public When_mapping_a_data_reader_to_a_dto_with_nested_dto()
         {
-            Mapper.Initialize(cfg => {
+            Mapper.Initialize(cfg =>
+            {
                 MapperRegistry.Mappers.Insert(0, new DataReaderMapper());
                 cfg.CreateMap<IDataReader, DtoWithNestedClass>();
             });
