@@ -22,7 +22,7 @@ namespace AutoMapper.DataReader
     {
         static DataReaderMapper()
         {
-            //FeatureDetector.IsIDataRecordType = t => typeof(IDataRecord).IsAssignableFrom(t);
+            //FeatureDetector.IsIDataRecordType = t => typeof(IDataRecord).IsAssignableFrom(t); //TODO: This used to prevent config from failing validation.
         }
         private static ConcurrentDictionary<BuilderKey, Build> _builderCache = new ConcurrentDictionary<BuilderKey, Build>();
         private static ConcurrentDictionary<Type, CreateEnumerableAdapter> _enumerableAdapterCache = new ConcurrentDictionary<Type, CreateEnumerableAdapter>();
